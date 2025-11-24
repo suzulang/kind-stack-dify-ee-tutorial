@@ -1,0 +1,114 @@
+# 数据持久化目录 - 包含数据库、缓存和存储数据
+dify-ee-infra-setup/data/
+**/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.uv/
+
+# 虚拟环境
+virtualenv/
+pipenv/
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# 日志文件
+*.log
+logs/
+*.log.*
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
+
+# 系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+.kube/
+
+# Docker
+.dockerignore
+docker-compose.override.yaml
+docker-compose.override.yml
+
+# 环境变量和敏感配置
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
+*.pem
+*.crt
+secrets/
+
+# 生成的配置文件（如果包含敏感信息）
+# 取消注释下面这行如果 values-prd.yaml 包含敏感信息
+# dify-ee-infra-setup/dify-ee-helm-chart-values/values-prd.yaml
+
+# Helm
+.helm/
+*.tgz
+
+# 备份文件
+*.bak
+*.backup
+*~
+
+# 测试覆盖率
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# 其他
+*.pid
+*.seed
+*.pid.lock
+
