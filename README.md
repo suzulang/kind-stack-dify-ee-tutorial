@@ -90,12 +90,14 @@ cd kind-cluster
    - 设置代理环境变量（HTTP_PROXY、HTTPS_PROXY、NO_PROXY）
 
 2. **创建 Kind 集群**
+   - `init.sh` 会先检查 `dify-ee-kind` 是否存在，必要时提示是否删除旧集群后再创建，避免脏状态
    - 集群名称：`dify-ee-kind`
    - 包含一个 control-plane 节点（端口映射：80→80, 443→443）
    - 包含一个 worker 节点（端口映射：80→8080, 443→8443）
 
 3. **安装 NGINX Ingress Controller**
    - 自动安装并等待就绪
+   - 安装过程将控制器 Deployment 使用 `nodeSelector` 与 `tolerations` 固定到 `dify-ee-kind-control-plane`，因为只有该节点映射了宿主机的 `80/443` 端口，确保外部流量能正确进入集群
 
 **验证集群和 Ingress Controller**：
 
