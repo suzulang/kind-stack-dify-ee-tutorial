@@ -1,33 +1,33 @@
-# AI Instructions
+# AI 指令
 
-> This section is for AI assistants. Humans can skip to [Kind Stack - Dify Enterprise Edition](#kind-stack---dify-enterprise-edition).
+> 本节面向 AI 助手。人类用户可跳至 [Kind Stack - Dify Enterprise Edition](#kind-stack---dify-enterprise-edition)。
 
-## Available Skills
+## 可用技能
 
-This repository provides two skills for AI-assisted Dify EE local deployment:
+本仓库提供两个用于 Dify EE 本地部署的技能：
 
-### 1. `dify-ee-local` - Deploy Dify EE
+### 1. `dify-ee-local` - 部署 Dify EE
 
-**Triggers**: "deploy dify enterprise locally", "setup dify ee on kind", "local kubernetes dify"
+**触发词**: "部署 dify 企业版", "本地部署 dify", "kind 部署 dify", "deploy dify enterprise locally"
 
-**Workflow**:
-1. Ask user for: (a) kind-stack path, (b) Helm Chart path
-2. Run `scripts/check-prerequisites.sh` to verify Docker, kubectl, Helm, Kind
-3. Phase 1: Infrastructure Setup
+**工作流程**:
+1. 向用户询问: (a) kind-stack 路径, (b) Helm Chart 路径
+2. 运行 `scripts/check-prerequisites.sh` 验证 Docker, kubectl, Helm, Kind
+3. 阶段1: 基础设施搭建
    - `cd <kind-stack-path>/kind-cluster && ./init.sh`
    - `cd <kind-stack-path>/infrastructure && docker compose up -d`
-   - `./init-databases.sh` (use defaults)
-4. Phase 2: Configure `values.yaml` using [dify-ee-local/references/values-config.md](dify-ee-local/references/values-config.md)
-5. Phase 3: `helm install dify <helm-chart-path> --namespace dify --create-namespace`
-6. Phase 4: Add hosts entries (run `scripts/show-hosts-config.sh`)
+   - `./init-databases.sh` (使用默认值)
+4. 阶段2: 配置 `values.yaml`，参考 [dify-ee-local/references/values-config.md](dify-ee-local/references/values-config.md)
+5. 阶段3: `helm install dify <helm-chart-path> --namespace dify --create-namespace`
+6. 阶段4: 添加 hosts 配置 (运行 `scripts/show-hosts-config.sh`)
 
-**Access URLs**: console.dify.local, enterprise.dify.local, app.dify.local
+**访问地址**: console.dify.local, enterprise.dify.local, app.dify.local
 
-### 2. `dify-ee-cleanup` - Remove Dify EE
+### 2. `dify-ee-cleanup` - 清理 Dify EE
 
-**Triggers**: "cleanup dify", "uninstall dify ee", "remove dify local environment", "delete dify deployment"
+**触发词**: "清理 dify", "卸载 dify", "删除 dify 环境", "cleanup dify", "uninstall dify ee"
 
-**Quick Cleanup**:
+**快速清理**:
 ```bash
 helm uninstall dify -n dify 2>/dev/null || true
 kubectl delete namespace dify --ignore-not-found
@@ -36,25 +36,25 @@ cd <kind-stack-path>/infrastructure && docker compose down -v --rmi all
 rm -rf <kind-stack-path>/infrastructure/data/*
 ```
 
-## Key Infrastructure Details
+## 基础设施详情
 
-| Service    | Host (from Kind)         | Port  | Credentials               |
+| 服务       | 主机 (Kind 内访问)       | 端口  | 凭据                      |
 |------------|--------------------------|-------|---------------------------|
 | PostgreSQL | host.docker.internal     | 55432 | postgres / devpassword    |
 | Redis      | host.docker.internal     | 6379  | devpassword               |
 | Qdrant     | host.docker.internal     | 6333  | devpassword               |
 | MinIO      | host.docker.internal     | 9000  | minioadmin / minioadmin123|
 
-**Databases**: dify, plugin_daemon, enterprise, audit
+**数据库**: dify, plugin_daemon, enterprise, audit
 
-## File Structure for AI
+## 文件结构
 
 ```
-kind-cluster/init.sh          # Creates Kind cluster + Ingress
+kind-cluster/init.sh          # 创建 Kind 集群 + Ingress
 infrastructure/docker-compose.yaml  # PostgreSQL, Redis, Qdrant, MinIO
-infrastructure/init-databases.sh    # Creates required databases
-dify-ee-local/SKILL.md        # Full deployment instructions
-dify-ee-cleanup/SKILL.md      # Full cleanup instructions
+infrastructure/init-databases.sh    # 创建所需数据库
+dify-ee-local/SKILL.md        # 完整部署指令
+dify-ee-cleanup/SKILL.md      # 完整清理指令
 ```
 
 ---
