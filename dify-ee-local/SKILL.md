@@ -4,20 +4,11 @@ description: |
   Deploy Dify Enterprise Edition to a local Kind (Kubernetes in Docker) cluster.
   Use when: (1) Setting up local Dify EE development environment, (2) "deploy dify enterprise locally",
   (3) "setup dify ee on kind", (4) "local kubernetes dify". Requires: Docker, kubectl, Helm, Kind.
-  Uses kind-stack-dify-ee-tutorial for infrastructure and user-provided Helm Chart.
 ---
 
 # Dify EE Local Deployment
 
-Deploy Dify Enterprise Edition to a local Kind cluster in 4 phases.
-
-## Prerequisites
-
-Run `scripts/check-prerequisites.sh` to verify:
-- Docker (20.10+)
-- kubectl (1.24+)
-- Helm (3.x)
-- Kind (0.20+)
+Deploy Dify Enterprise Edition to a local Kind cluster.
 
 ## Required Paths
 
@@ -25,208 +16,156 @@ Ask user for:
 1. **kind-stack path**: Directory containing `kind-cluster/` and `infrastructure/`
 2. **Helm Chart path**: Directory containing Dify EE `Chart.yaml` and `values.yaml`
 
+## Quick Start
+
+```
+Phase 1: Infrastructure  →  Phase 2: Configure  →  Phase 3: Deploy  →  Phase 4: Verify
+```
+
 ---
 
 ## Phase 1: Infrastructure Setup
 
+See [references/infrastructure.md](references/infrastructure.md) for detailed setup.
+
 ### 1.1 Create Kind Cluster
 
 ```bash
-cd <kind-stack-path>/kind-cluster
-./init.sh
+cd <kind-stack-path>/kind-cluster && ./init.sh
+kubectl get nodes  # Verify: 2 nodes Ready
 ```
 
-Verify:
+### 1.2 Start Local Registry
+
 ```bash
-kubectl cluster-info --context kind-dify-ee-kind
-kubectl get nodes
+docker run -d -p 5050:5000 --restart=always --name local-registry registry:2
 ```
 
-### 1.2 Start Infrastructure Services
+### 1.3 Configure Kind for Insecure Registry
+
+```bash
+for node in dify-ee-kind-control-plane dify-ee-kind-worker; do
+  docker exec $node mkdir -p /etc/containerd/certs.d/host.docker.internal:5050
+  docker exec $node sh -c 'cat > /etc/containerd/certs.d/host.docker.internal:5050/hosts.toml << EOF
+server = "http://host.docker.internal:5050"
+[host."http://host.docker.internal:5050"]
+  capabilities = ["pull", "resolve", "push"]
+  skip_verify = true
+EOF'
+  docker exec $node systemctl restart containerd
+done
+kubectl wait --for=condition=Ready nodes --all --timeout=60s
+```
+
+### 1.4 Start External Services
 
 ```bash
 cd <kind-stack-path>/infrastructure
-docker compose -f docker-compose.yaml up -d
-```
-
-Verify:
-```bash
-docker ps | grep -E "(dev-postgres|dev-redis|dev-minio|dev-qdrant)"
-```
-
-### 1.3 Initialize Databases
-
-```bash
+docker compose up -d
 ./init-databases.sh
 ```
 
-Use defaults: host=localhost, port=55432, user=postgres, password=devpassword
+### 1.5 Get MinIO Credentials
 
-Creates databases: `dify`, `plugin_daemon`, `enterprise`, `audit`
+```bash
+docker exec dev-minio env | grep MINIO_ROOT
+# Note: Use these exact values in values.yaml
+```
+
+### 1.6 Create MinIO Bucket
+
+```bash
+MINIO_USER=$(docker exec dev-minio env | grep MINIO_ROOT_USER | cut -d= -f2)
+MINIO_PASS=$(docker exec dev-minio env | grep MINIO_ROOT_PASSWORD | cut -d= -f2)
+docker exec dev-minio mc alias set local http://localhost:9000 "$MINIO_USER" "$MINIO_PASS"
+docker exec dev-minio mc mb local/dify --ignore-existing
+docker exec dev-minio mc anonymous set public local/dify
+```
 
 ---
 
 ## Phase 2: Configure values.yaml
 
-See [references/values-config.md](references/values-config.md) for complete configuration.
+See [references/helm-config.md](references/helm-config.md) for complete configuration.
 
-### 2.1 Generate Secrets
+### Critical Settings
 
-Run `scripts/generate-secrets.sh` to generate required keys.
-
-### 2.2 Key Configuration Changes
-
-Edit `<helm-chart-path>/values.yaml`:
-
-**Global secrets:**
 ```yaml
-global:
-  appSecretKey: "<generated-key>"
-```
-
-**Domains (fixed):**
-```yaml
-global:
-  consoleApiDomain: "console.dify.local"
-  consoleWebDomain: "console.dify.local"
-  serviceApiDomain: "api.dify.local"
-  appApiDomain: "app.dify.local"
-  appWebDomain: "app.dify.local"
-  filesDomain: "files.dify.local"
-  enterpriseDomain: "enterprise.dify.local"
-  triggerDomain: "trigger.dify.local"
-```
-
-**Enable Ingress:**
-```yaml
-ingress:
-  enabled: true
-  className: "nginx"
-```
-
-**External PostgreSQL:**
-```yaml
-externalPostgres:
-  enabled: true
-  address: host.docker.internal
-  port: 55432
-  credentials:
-    dify:
-      password: "devpassword"
-      sslmode: "disable"
-    # Same for plugin_daemon, enterprise, audit
-```
-
-**External Redis:**
-```yaml
-externalRedis:
-  enabled: true
-  host: "host.docker.internal"
-  port: 6379
-  password: "devpassword"
-```
-
-**External Qdrant:**
-```yaml
-vectorDB:
-  useExternal: true
-  externalType: "qdrant"
-  externalQdrant:
-    endpoint: "http://host.docker.internal:6333"
-    apiKey: "devpassword"
-```
-
-**External MinIO (S3):**
-```yaml
+# Storage - USE ACTUAL MINIO CREDENTIALS FROM STEP 1.5
 persistence:
   type: "s3"
   s3:
     endpoint: "http://host.docker.internal:9000"
-    accessKey: "minioadmin"
-    secretKey: "minioadmin123"
+    accessKey: "<MINIO_ROOT_USER>"
+    secretKey: "<MINIO_ROOT_PASSWORD>"
     bucketName: "dify"
     useAwsS3: false
 
 minio:
   enabled: false
-```
 
-### 2.3 Create MinIO Bucket
-
-```bash
-docker exec dev-minio mc alias set local http://localhost:9000 minioadmin minioadmin123
-docker exec dev-minio mc mb local/dify --ignore-existing
+# Plugin Builder - USE LOCAL REGISTRY
+pluginBuilder:
+  insecureImageRepo: true
+  imageRepoPrefix: "host.docker.internal:5050"
+  imageRepoType: docker
 ```
 
 ---
 
 ## Phase 3: Deploy
 
-### 3.1 Install Helm Chart
-
 ```bash
-helm install dify <helm-chart-path> --namespace dify --create-namespace --timeout 10m
+helm install dify <helm-chart-path> -n dify --create-namespace --timeout 10m
+kubectl get pods -n dify  # Wait for all Running
 ```
 
-### 3.2 Verify Deployment
+### Verify Plugin Builder Config
 
 ```bash
-kubectl get pods -n dify
-kubectl get ingress -n dify
+kubectl get configmap dify-plugin-connector-config -n dify -o yaml | grep -E "repoType|imagePrefix"
+# Expected: repoType: "docker", imagePrefix: "host.docker.internal:5050"
 ```
 
-Wait for all pods to be Running (16 pods expected).
+If incorrect: `helm upgrade dify <helm-chart-path> -n dify && kubectl rollout restart deployment dify-plugin-connector -n dify`
 
 ---
 
-## Phase 4: Configure Hosts
-
-### 4.1 Add DNS Mappings
-
-Run `scripts/show-hosts-config.sh` to display the hosts configuration.
+## Phase 4: Configure Access
 
 Add to `/etc/hosts`:
 ```
-127.0.0.1 console.dify.local
-127.0.0.1 app.dify.local
-127.0.0.1 api.dify.local
-127.0.0.1 enterprise.dify.local
-127.0.0.1 files.dify.local
-127.0.0.1 trigger.dify.local
+127.0.0.1 console.dify.local app.dify.local api.dify.local enterprise.dify.local files.dify.local trigger.dify.local
 ```
 
-### 4.2 Verify Access
-
-```bash
-curl -s -o /dev/null -w "%{http_code}" http://console.dify.local
-curl -s -o /dev/null -w "%{http_code}" http://enterprise.dify.local
-```
-
-Expected: 307 (redirect) or 200
+Access: http://console.dify.local
 
 ---
 
-## Access URLs
+## Phase 5: Verify Plugin System
 
-- Console: http://console.dify.local
-- Enterprise Admin: http://enterprise.dify.local
-- WebApp: http://app.dify.local
+See [references/plugin-system.md](references/plugin-system.md) for complete plugin installation flow.
+
+```bash
+# Install any plugin from Marketplace, then monitor:
+kubectl get difyplugin,jobs -n dify -w
+# Expected: DifyPlugin status → Building → Running
+```
 
 ---
 
 ## Troubleshooting
 
-### Pod CrashLoopBackOff
+See [references/troubleshooting.md](references/troubleshooting.md) for common issues.
 
-Check logs: `kubectl logs <pod-name> -n dify`
+**Quick checks:**
+```bash
+scripts/verify-environment.sh  # Run before deploy
+```
 
-Common cause: plugin-daemon starts before plugin-connector. Wait for auto-recovery.
-
-### MinIO Job Timeout
-
-Ensure `minio.enabled: false` in values.yaml when using external MinIO.
-
-### Connection Refused
-
-Verify infrastructure containers: `docker ps`
-Verify Kind cluster: `kubectl get nodes`
+| Symptom | Likely Cause | Reference |
+|---------|--------------|-----------|
+| Plugin UNAUTHORIZED | Missing local registry | infrastructure.md |
+| Plugin ImagePullBackOff | Kind insecure registry not configured | infrastructure.md |
+| PrivkeyNotFoundError | MinIO credentials mismatch | troubleshooting.md |
+| ConfigMap has ECR | Helm config not applied | troubleshooting.md |

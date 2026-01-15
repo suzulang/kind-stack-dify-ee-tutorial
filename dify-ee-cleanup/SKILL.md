@@ -17,9 +17,22 @@ Ask user for **kind-stack path**: Directory containing `kind-cluster/` and `infr
 
 ---
 
-## Quick Cleanup (All-in-One)
+## Infrastructure Components
 
-For complete cleanup, execute these steps in order:
+| Component | Container | Port | Cleanup |
+|-----------|-----------|------|---------|
+| Kind Cluster | dify-ee-kind-* | - | Core |
+| PostgreSQL | dev-postgres | 55432 | Core |
+| Redis | dev-redis | 6379 | Core |
+| MinIO | dev-minio | 9000/9001 | Core |
+| Qdrant | dev-qdrant | 6333/6334 | Core |
+| Local Registry | local-registry | 5050 | Optional |
+
+---
+
+## Quick Cleanup (Core)
+
+Execute these steps in order:
 
 ### Step 1: Uninstall Helm Release
 
@@ -46,6 +59,38 @@ docker compose -f docker-compose.yaml down -v --rmi all
 ```bash
 rm -rf <kind-stack-path>/infrastructure/data/*
 ```
+
+---
+
+## Optional Cleanup
+
+### Optional: Remove Local Registry
+
+⚠️ **Warning**: Only remove if not used by other projects.
+
+The local registry (`local-registry:5050`) may be shared by multiple projects.
+
+```bash
+# Check if registry has other images
+curl -s http://localhost:5050/v2/_catalog
+
+# Remove if only Dify images or empty
+docker rm -f local-registry
+```
+
+### Optional: Remove /etc/hosts Entries
+
+```bash
+sudo sed -i '' '/dify.local/d' /etc/hosts
+```
+
+Or manually remove these lines from `/etc/hosts`:
+- 127.0.0.1 console.dify.local
+- 127.0.0.1 app.dify.local
+- 127.0.0.1 api.dify.local
+- 127.0.0.1 enterprise.dify.local
+- 127.0.0.1 files.dify.local
+- 127.0.0.1 trigger.dify.local
 
 ---
 
@@ -76,12 +121,22 @@ kind delete cluster --name dify-ee-kind
 
 ## Verification
 
-After cleanup, verify:
+### Core Verification
 
 ```bash
 # No Kind cluster
 kind get clusters | grep dify-ee-kind || echo "Kind cluster removed"
 
-# No Docker containers
-docker ps | grep -E "(dev-postgres|dev-redis|dev-minio|dev-qdrant)" || echo "Containers removed"
+# No infrastructure containers
+docker ps | grep -E "(dev-postgres|dev-redis|dev-minio|dev-qdrant)" || echo "Infrastructure removed"
+```
+
+### Optional Verification
+
+```bash
+# Local registry removed
+docker ps | grep local-registry || echo "Local registry removed"
+
+# Hosts entries removed
+grep dify.local /etc/hosts || echo "Hosts entries removed"
 ```
