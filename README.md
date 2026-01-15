@@ -1,3 +1,64 @@
+# AI Instructions
+
+> This section is for AI assistants. Humans can skip to [Kind Stack - Dify Enterprise Edition](#kind-stack---dify-enterprise-edition).
+
+## Available Skills
+
+This repository provides two skills for AI-assisted Dify EE local deployment:
+
+### 1. `dify-ee-local` - Deploy Dify EE
+
+**Triggers**: "deploy dify enterprise locally", "setup dify ee on kind", "local kubernetes dify"
+
+**Workflow**:
+1. Ask user for: (a) kind-stack path, (b) Helm Chart path
+2. Run `scripts/check-prerequisites.sh` to verify Docker, kubectl, Helm, Kind
+3. Phase 1: Infrastructure Setup
+   - `cd <kind-stack-path>/kind-cluster && ./init.sh`
+   - `cd <kind-stack-path>/infrastructure && docker compose up -d`
+   - `./init-databases.sh` (use defaults)
+4. Phase 2: Configure `values.yaml` using [dify-ee-local/references/values-config.md](dify-ee-local/references/values-config.md)
+5. Phase 3: `helm install dify <helm-chart-path> --namespace dify --create-namespace`
+6. Phase 4: Add hosts entries (run `scripts/show-hosts-config.sh`)
+
+**Access URLs**: console.dify.local, enterprise.dify.local, app.dify.local
+
+### 2. `dify-ee-cleanup` - Remove Dify EE
+
+**Triggers**: "cleanup dify", "uninstall dify ee", "remove dify local environment", "delete dify deployment"
+
+**Quick Cleanup**:
+```bash
+helm uninstall dify -n dify 2>/dev/null || true
+kubectl delete namespace dify --ignore-not-found
+kind delete cluster --name dify-ee-kind
+cd <kind-stack-path>/infrastructure && docker compose down -v --rmi all
+rm -rf <kind-stack-path>/infrastructure/data/*
+```
+
+## Key Infrastructure Details
+
+| Service    | Host (from Kind)         | Port  | Credentials               |
+|------------|--------------------------|-------|---------------------------|
+| PostgreSQL | host.docker.internal     | 55432 | postgres / devpassword    |
+| Redis      | host.docker.internal     | 6379  | devpassword               |
+| Qdrant     | host.docker.internal     | 6333  | devpassword               |
+| MinIO      | host.docker.internal     | 9000  | minioadmin / minioadmin123|
+
+**Databases**: dify, plugin_daemon, enterprise, audit
+
+## File Structure for AI
+
+```
+kind-cluster/init.sh          # Creates Kind cluster + Ingress
+infrastructure/docker-compose.yaml  # PostgreSQL, Redis, Qdrant, MinIO
+infrastructure/init-databases.sh    # Creates required databases
+dify-ee-local/SKILL.md        # Full deployment instructions
+dify-ee-cleanup/SKILL.md      # Full cleanup instructions
+```
+
+---
+
 # Kind Stack - Dify Enterprise Edition
 
 为在本地 Kind (Kubernetes in Docker) 集群上部署 Dify Enterprise Edition 提供前置准备和基础设施配置。
